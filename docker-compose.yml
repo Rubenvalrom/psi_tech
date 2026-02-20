@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # 1. Base de Datos Relacional y Vectorial (PostgreSQL + pgvector) 
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: olympus_db
+    restart: always
+    environment:
+      POSTGRES_USER: olympus_admin
+      POSTGRES_PASSWORD: olympus_password
+      POSTGRES_DB: olympus_smart_gov
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U olympus_admin -d olympus_smart_gov"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Gestión de Identidad y Acceso (Keycloak - SSO/RBAC) 
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: olympus_iam
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin_password
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+  # 3. Inteligencia Artificial (Ollama para LLM locales) 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: olympus_ai
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # 4. Backend (Ejemplo en Python/FastAPI) [cite: 20, 22]
+  backend:
+    build: ./backend
+    container_name: olympus_backend
+    environment:
+      DATABASE_URL: postgresql://olympus_admin:olympus_password@db:5432/olympus_smart_gov
+      OLLAMA_HOST: http://ollama:11434
+      KEYCLOAK_URL: http://keycloak:8080
+      DEBUG: "True"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # 5. Frontend (React/Angular - Diseño Responsive/WCAG 2.1) [cite: 23]
+  frontend:
+    build: ./frontend
+    container_name: olympus_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  ollama_data:
