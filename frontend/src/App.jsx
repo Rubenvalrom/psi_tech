@@ -108,16 +108,7 @@ function VerifyingScreen() {
 }
 
 function AppRouter() {
-  const navigate = useNavigate();
-  const { loading, isAuthenticated } = useAuth();
-
-  // Escuchar cambios en autenticación para navegar
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      // Usuario acaba de loguearse, ir a dashboard
-      navigate("/dashboard", { replace: true });
-    }
-  }, [isAuthenticated, loading, navigate]);
+  const { isAuthenticated } = useAuth();
 
   return (
     <Routes>
@@ -126,7 +117,15 @@ function AppRouter() {
       {/* Ruta raíz: redirige según estado de autenticación */}
       <Route
         path="/"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
+        element={
+          isAuthenticated ? (
+            <Navigate to="/dashboard" replace />
+          ) : (window.location.search.includes("code=") ? (
+            <VerifyingScreen />
+          ) : (
+            <Navigate to="/login" replace />
+          ))
+        }
       />
 
       <Route
@@ -160,26 +159,43 @@ function AppRouter() {
 }
 
 function App() {
-  const { loading, isAuthenticated } = useAuth();
+  const { loading, isAuthenticated, error } = useAuth();
 
-  // 1. Mientras el sistema inicia, mostramos pantalla de carga
+  // 1. Si hay un error crítico de autenticación, mostramos el error para diagnosticar
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-red-50 p-4">
+        <div className="bg-white p-8 rounded-lg shadow-xl border-t-4 border-red-500 max-w-md w-full">
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Error de Conexión</h2>
+          <p className="text-gray-700 mb-4 font-medium">No pudimos validar tu sesión con Keycloak.</p>
+          <div className="bg-gray-100 p-3 rounded text-xs font-mono text-gray-600 mb-6 break-all">
+            {error.message}
+          </div>
+          <button 
+            onClick={() => window.location.href = "/"}
+            className="w-full bg-red-600 text-white py-2 rounded font-bold hover:bg-red-700 transition"
+          >
+            Intentar de nuevo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Mientras el sistema inicia, mostramos pantalla de carga
   if (loading) {
     return <LoadingScreen />;
   }
 
-  // 2. Si hay un código en la URL Y no está autenticado, mostramos "Verificando..."
+  // 3. Si hay un código en la URL Y estamos cargando, mostramos "Verificando..."
   //    (react-oidc-context está procesando el código en el background)
-  const hasCode = (window.location.search.includes("code=") || window.location.search.includes("state=")) && !isAuthenticated;
-  if (hasCode) {
+  const hasParams = window.location.search.includes("code=") || window.location.search.includes("state=");
+  if (hasParams && loading) {
     return <VerifyingScreen />;
   }
 
-  // 3. Renderiza el router con todas las rutas
-  return (
-    <BrowserRouter>
-      <AppRouter />
-    </BrowserRouter>
-  );
+  // 4. Renderiza el router con todas las rutas
+  return <AppRouter />;
 }
 
 export default App;

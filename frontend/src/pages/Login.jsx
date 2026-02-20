@@ -5,12 +5,14 @@ import { useAuth } from "../hooks/useAuth";
 export function Login() {
   const { login, isAuthenticated, loading, error } = useAuth();
   const navigate = useNavigate();
+  const isExpired = window.location.search.includes("reason=session_expired");
 
   useEffect(() => {
-    if (isAuthenticated) {
+    // Si ya está autenticado y NO es porque venimos de una sesión expirada, ir al dashboard
+    if (isAuthenticated && !isExpired) {
       navigate("/dashboard");
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, isExpired]);
 
   if (error) {
     return (
@@ -30,6 +32,13 @@ export function Login() {
     <div className="flex items-center justify-center min-h-screen bg-blue-50">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md text-center">
         <h1 className="text-3xl font-bold mb-6 text-blue-600">Olympus Smart Gov</h1>
+        
+        {isExpired && (
+          <div className="mb-6 p-3 bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg">
+            Tu sesión ha expirado o es inválida. Por favor, vuelve a entrar.
+          </div>
+        )}
+
         {loading ? (
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         ) : (
