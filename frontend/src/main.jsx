@@ -4,15 +4,25 @@ import { AuthProvider } from "react-oidc-context";
 import App from "./App.jsx";
 import "./index.css";
 
+const authority = import.meta.env.VITE_AUTH_AUTHORITY || "http://localhost:8080/realms/olympus";
+const redirect_uri = import.meta.env.VITE_AUTH_REDIRECT_URI || "http://localhost:3000";
+
 const oidcConfig = {
-  authority: "http://localhost:8080/realms/olympus",
+  authority,
   client_id: "olympus-frontend",
-  redirect_uri: window.location.origin,
-  onSigninCallback: () => {
-    // Remove query string after successful login
-    window.history.replaceState({}, document.title, window.location.pathname);
+  redirect_uri,
+  response_type: "code",
+  scope: "openid profile email",
+  
+  // Configuración de usuario y token
+  loadUserInfo: true,
+  automaticSilentRenew: true,
+  
+  // Callbacks
+  onSigninCallback: (user) => {
+    console.log("✅ [OIDC] Login exitoso. Usuario:", user?.profile?.preferred_username);
+    console.log("✅ [OIDC] Token guard:", !!user?.access_token);
   },
-  post_logout_redirect_uri: window.location.origin
 };
 
 ReactDOM.createRoot(document.getElementById("root")).render(

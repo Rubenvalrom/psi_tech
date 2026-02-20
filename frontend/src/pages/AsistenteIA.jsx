@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Layout } from "../components/Layout";
+import { ToastContainer } from "../components/Toast";
+import useToast from "../hooks/useToast";
 import api from "../services/api";
 
 export function AsistenteIA() {
+  const { toasts, addToast, removeToast } = useToast();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState([]);
@@ -14,7 +17,10 @@ export function AsistenteIA() {
 
   const handleAsk = async (e) => {
     e.preventDefault();
-    if (!question.trim()) return;
+    if (!question.trim()) {
+      addToast("Por favor, escribe una pregunta", "warning");
+      return;
+    }
     
     setLoading(true);
     setAnswer("");
@@ -22,10 +28,23 @@ export function AsistenteIA() {
     
     try {
       const response = await api.post(`/ai/ask?question=${encodeURIComponent(question)}`);
-      setAnswer(response.data.answer);
-      setSources(response.data.sources);
+      
+      // Defensive validation
+      const responseAnswer = response.data?.answer;
+      const responseSources = Array.isArray(response.data?.sources) ? response.data.sources : [];
+      
+      if (!responseAnswer) {
+        addToast("Respuesta vacía del asistente", "warning");
+        return;
+      }
+      
+      setAnswer(responseAnswer);
+      setSources(responseSources);
+      addToast("Pregunta procesada correctamente", "success");
     } catch (err) {
-      alert("Error consultando al asistente: " + err.message);
+      const errorMsg = err.response?.data?.detail || err.message || "Error consultando al asistente";
+      addToast(`Error: ${errorMsg}`, "error");
+      console.error("Error asking AI:", err);
     } finally {
       setLoading(false);
     }
@@ -33,14 +52,27 @@ export function AsistenteIA() {
 
   const handleSemanticSearch = async (e) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) {
+      addToast("Por favor, escribe una búsqueda", "warning");
+      return;
+    }
     
     setSearchLoading(true);
     try {
       const response = await api.post(`/ai/search/semantic?query=${encodeURIComponent(searchQuery)}`);
-      setSearchResults(response.data);
+      
+      // Defensive validation
+      const results = Array.isArray(response.data) ? response.data : [];
+      
+      if (results.length === 0) {
+        addToast("No se encontraron resultados", "info");
+      }
+      
+      setSearchResults(results);
     } catch (err) {
-      alert("Error en búsqueda semántica: " + err.message);
+      const errorMsg = err.response?.data?.detail || err.message || "Error en búsqueda semántica";
+      addToast(`Error: ${errorMsg}`, "error");
+      console.error("Error in semantic search:", err);
     } finally {
       setSearchLoading(false);
     }
@@ -48,6 +80,8 @@ export function AsistenteIA() {
 
   return (
     <Layout>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900">Asistente IA ✨</h1>
         <p className="text-gray-600 mt-2">Búsqueda semántica y respuestas inteligentes con RAG</p>
@@ -65,6 +99,7 @@ export function AsistenteIA() {
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="Ej: ¿Qué facturas tenemos pendientes del proveedor Olympus Tech?"
               className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 h-24"
+              disabled={loading}
             />
             <button
               type="submit"
@@ -80,12 +115,14 @@ export function AsistenteIA() {
               <h3 className="font-bold text-blue-800 mb-2">Respuesta:</h3>
               <p className="text-blue-900 text-sm leading-relaxed">{answer}</p>
               
-              {sources.length > 0 && (
+              {(sources?.length ?? 0) > 0 && (
                 <div className="mt-4 pt-4 border-t border-blue-200">
                   <h4 className="text-xs font-bold text-blue-700 uppercase mb-2">Fuentes utilizadas:</h4>
                   <ul className="space-y-1">
                     {sources.map(s => (
-                      <li key={s.id} className="text-xs text-blue-600">• {s.nombre} (Expediente {s.expediente_id})</li>
+                      <li key={s?.id} className="text-xs text-blue-600">
+                        • {s?.nombre || "Documento sin nombre"} (Expediente {s?.expediente_id || "N/A"})
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -106,29 +143,30 @@ export function AsistenteIA() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Busca por significado..."
               className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+              disabled={searchLoading}
             />
             <button
               type="submit"
               disabled={searchLoading}
-              className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 transition"
+              className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700 disabled:bg-purple-300 transition"
             >
               {searchLoading ? "..." : "Buscar"}
             </button>
           </form>
 
           <div className="space-y-4">
-            {searchResults.length === 0 && !searchLoading && (
+            {(searchResults?.length ?? 0) === 0 && !searchLoading && (
               <p className="text-center text-gray-400 py-8 italic">No hay resultados semánticos.</p>
             )}
             
-            {searchResults.map((res) => (
-              <div key={res.id} className="p-4 border rounded-lg hover:border-purple-300 transition group cursor-pointer">
+            {(searchResults ?? []).map((res) => (
+              <div key={res?.id} className="p-4 border rounded-lg hover:border-purple-300 transition group cursor-pointer">
                 <div className="flex justify-between items-start mb-1">
-                  <h3 className="font-bold text-gray-900 group-hover:text-purple-600">{res.nombre}</h3>
-                  <span className="text-xs font-mono text-gray-400">Exp: {res.expediente_id}</span>
+                  <h3 className="font-bold text-gray-900 group-hover:text-purple-600">{res?.nombre || "Documento sin nombre"}</h3>
+                  <span className="text-xs font-mono text-gray-400">Exp: {res?.expediente_id || "N/A"}</span>
                 </div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">{res.tipo}</p>
-                {res.metadatos?.resumen && (
+                <p className="text-xs text-gray-500 uppercase tracking-wider">{res?.tipo || "Tipo desconocido"}</p>
+                {res?.metadatos?.resumen && (
                   <p className="text-sm text-gray-600 mt-2 italic">"{res.metadatos.resumen}"</p>
                 )}
               </div>

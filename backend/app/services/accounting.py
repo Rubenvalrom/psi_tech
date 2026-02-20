@@ -33,6 +33,11 @@ class AccountingService:
 
     def commit_budget(self, partida_id: int, amount: Decimal, expediente_id: int, user_id: int):
         """Commits funds from a budget line to an expediente."""
+        # Validate expediente exists
+        expediente = self.db.query(Expediente).filter(Expediente.id == expediente_id).first()
+        if not expediente:
+            raise ValueError(f"Expediente {expediente_id} not found")
+
         partida = self.db.query(PartidaPresupuestaria).filter(PartidaPresupuestaria.id == partida_id).first()
         if not partida:
             raise ValueError("Partida not found")
@@ -42,7 +47,7 @@ class AccountingService:
 
         partida.comprometido += amount
         
-        # Log logic
+        # Log financial event
         self._log_financial_event(expediente_id, user_id, "COMPROMISO_GASTO", 
                                 f"Comprometidos {amount}€ de la partida {partida.codigo_contable}")
         
@@ -52,6 +57,13 @@ class AccountingService:
 
     def register_invoice(self, invoice_data: dict, user_id: int):
         """Registers a new invoice and updates budget execution if applicable."""
+        # Validate expediente exists if provided
+        expediente_id = invoice_data.get('expediente_id')
+        if expediente_id:
+            expediente = self.db.query(Expediente).filter(Expediente.id == expediente_id).first()
+            if not expediente:
+                raise ValueError(f"Expediente {expediente_id} not found")
+
         # Check if invoice number exists
         existing = self.db.query(Factura).filter(Factura.numero == invoice_data['numero']).first()
         if existing:
@@ -68,14 +80,9 @@ class AccountingService:
             
             if partida:
                 # Assuming the committed amount is released and moved to 'pagado'
-                # or just added to 'pagado' directly depending on the flow.
                 # Simplified: Increase 'pagado', decrease 'comprometido' (if it was committed)
                 # For now, just track 'pagado' accumulation.
                 partida.pagado += factura.monto
-                # If we assume it was previously committed, we should reduce committed. 
-                # But typically commitment happens at an earlier stage (AD). 
-                # Let's assume strict flow: A (Auth) -> D (Commit) -> O (Obligation) -> P (Payment)
-                # Here we just increment 'pagado' for simplicity in Phase 4.
 
         self.db.add(factura)
         
@@ -88,10 +95,10 @@ class AccountingService:
         return factura
 
     def _log_financial_event(self, expediente_id: int, user_id: int, action: str, description: str):
-        """Helper to log to Trazabilidad."""
+        """Helper to log to Trazabilidad table."""
         log = Trazabilidad(
             expediente_id=expediente_id,
-            user_id=user_id,
+            usuario_id=user_id,
             accion=action,
             descripcion=description
         )

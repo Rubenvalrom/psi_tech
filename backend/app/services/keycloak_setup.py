@@ -1,98 +1,75 @@
-from keycloak import KeycloakAdmin
-from keycloak.exceptions import KeycloakError
-import time
+import requests
 import os
+import time
 import logging
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
-KEYCLOAK_ADMIN_USER = os.getenv("KEYCLOAK_ADMIN_USER", "admin")
-KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "admin_password")
-REALM_NAME = "olympus"
+# Configuración interna (Docker network)
+BASE = 'http://keycloak:8080'
+ADMIN_USER = 'admin'
+ADMIN_PASSWORD = 'admin_password'
+REALM = 'olympus'
+CLIENT_ID = 'olympus-frontend'
 
-def setup_keycloak():
-    """Setup Keycloak realm, clients, and test user."""
-    # Wait for Keycloak to be ready
-    logger.info("Waiting for Keycloak...")
-    time.sleep(15) 
+def run():
+    print("Iniciando reparación de Keycloak...")
+    
+    # 1. Obtener Token
+    token = None
+    for i in range(10):
+        try:
+            r = requests.post(f'{BASE}/realms/master/protocol/openid-connect/token', 
+                             data={'grant_type': 'password', 'client_id': 'admin-cli', 
+                                   'username': ADMIN_USER, 'password': ADMIN_PASSWORD},
+                             timeout=5)
+            token = r.json()['access_token']
+            break
+        except Exception:
+            print("Esperando a Keycloak...")
+            time.sleep(5)
 
-    try:
-        keycloak_admin = KeycloakAdmin(server_url=f"{KEYCLOAK_URL}/",
-                                     username=KEYCLOAK_ADMIN_USER,
-                                     password=KEYCLOAK_ADMIN_PASSWORD,
-                                     realm_name="master",
-                                     verify=True)
-    except Exception as e:
-        logger.error(f"Failed to connect to Keycloak: {e}")
+    if not token:
+        print("❌ No se pudo conectar con Keycloak")
         return
 
-    # Create Realm if not exists
-    try:
-        realms = keycloak_admin.get_realms()
-        realm_names = [realm['realm'] for realm in realms]
-        if REALM_NAME not in realm_names:
-            logger.info(f"Creating realm '{REALM_NAME}'...")
-            keycloak_admin.create_realm(payload={"realm": REALM_NAME, "enabled": True})
-        else:
-            logger.info(f"Realm '{REALM_NAME}' already exists.")
-    except KeycloakError as e:
-        logger.error(f"Error checking/creating realm: {e}")
+    h = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
 
-    # Switch to realm
-    keycloak_admin.realm_name = REALM_NAME
+    # 2. Crear Realm
+    requests.post(f'{BASE}/admin/realms', json={'realm': REALM, 'enabled': True}, headers=h)
 
-    # Create Clients
-    clients = keycloak_admin.get_clients()
-    client_ids = [client.get('clientId') for client in clients]
+    # 3. Configurar Cliente
+    clients = requests.get(f'{BASE}/admin/realms/{REALM}/clients', headers=h).json()
+    client = next((c for c in clients if c['clientId'] == CLIENT_ID), None)
     
-    # 1. Backend Client (Confidential) - though frontend calls it directly? 
-    # Usually frontend calls API with token. Backend verifies token.
-    # Frontend needs a public client.
-    
-    frontend_client_id = "olympus-frontend"
-    if frontend_client_id not in client_ids:
-        logger.info(f"Creating public client '{frontend_client_id}'...")
-        keycloak_admin.create_client(payload={
-            "clientId": frontend_client_id,
-            "enabled": True,
-            "publicClient": True,
-            "redirectUris": ["http://localhost:3000/*", "http://frontend:3000/*"],
-            "webOrigins": ["+"],
-            "standardFlowEnabled": True,
-            "directAccessGrantsEnabled": True
-        })
+    payload = {
+        'clientId': CLIENT_ID,
+        'enabled': True,
+        'publicClient': True,
+        'protocol': 'openid-connect',
+        'standardFlowEnabled': True,
+        'directAccessGrantsEnabled': True,
+        'redirectUris': ['http://localhost:3000/*', 'http://127.0.0.1:3000/*'],
+        'webOrigins': ['*']
+    }
 
-    # Create Roles
-    roles = ["admin", "funcionario", "gestor_financiero"]
-    existing_roles = [role['name'] for role in keycloak_admin.get_realm_roles()]
-    
-    for role in roles:
-        if role not in existing_roles:
-            keycloak_admin.create_realm_role(payload={"name": role})
+    if client:
+        requests.put(f'{BASE}/admin/realms/{REALM}/clients/{client["id"]}', json=payload, headers=h)
+    else:
+        requests.post(f'{BASE}/admin/realms/{REALM}/clients', json=payload, headers=h)
 
-    # Create User
-    test_user_username = "funcionario1"
-    users = keycloak_admin.get_users({"username": test_user_username})
+    # 4. Usuario
+    requests.post(f'{BASE}/admin/realms/{REALM}/users', 
+                 json={'username': 'funcionario1', 'enabled': True, 'email': 'f1@olympus.gov'}, headers=h)
     
-    if not users:
-        logger.info(f"Creating test user '{test_user_username}'...")
-        new_user_id = keycloak_admin.create_user(payload={
-            "username": test_user_username,
-            "email": "funcionario1@olympus.gov",
-            "firstName": "Juan",
-            "lastName": "Funcionario",
-            "enabled": True,
-            "emailVerified": True
-        })
-        keycloak_admin.set_user_password(user_id=new_user_id, password="password123", temporary=False)
-        
-        # Assign Role
-        role = keycloak_admin.get_realm_role("funcionario")
-        keycloak_admin.assign_realm_roles(user_id=new_user_id, roles=[role])
+    users = requests.get(f'{BASE}/admin/realms/{REALM}/users?username=funcionario1', headers=h).json()
+    if users:
+        uid = users[0]['id']
+        requests.put(f'{BASE}/admin/realms/{REALM}/users/{uid}/reset-password', 
+                     json={'type': 'password', 'value': 'password123', 'temporary': False}, headers=h)
 
-    logger.info("Keycloak setup complete.")
+    print("✅ KEYCLOAK REPARADO: Entra en http://localhost:3000")
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    setup_keycloak()
+    run()

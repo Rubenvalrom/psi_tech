@@ -1,13 +1,13 @@
 """Pydantic schemas for Expediente models."""
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
 class DocumentoBase(BaseModel):
     """Base documento schema."""
-    nombre: str
-    tipo: str = "ADJUNTO"
+    nombre: str = Field(..., min_length=1, max_length=255, description="Nombre del documento")
+    tipo: str = Field(default="ADJUNTO", max_length=50)
 
 
 class DocumentoCreate(DocumentoBase):
@@ -22,7 +22,7 @@ class DocumentoRead(DocumentoBase):
     fecha_carga: datetime
     metadatos_extraidos: Optional[str] = None
     
-    # Phase 3
+    # Phase 3: Digital signing
     hash_firma: Optional[str] = None
     firmado_por: Optional[str] = None
     fecha_firma: Optional[datetime] = None
@@ -33,28 +33,30 @@ class DocumentoRead(DocumentoBase):
 
 class DocumentoSign(BaseModel):
     """Schema for signing a documento."""
-    firmado_por: str
+    firmado_por: str = Field(..., min_length=1, max_length=255, description="Nombre de quien firma")
 
 
 class TrazabilidadRead(BaseModel):
     """Schema for reading audit trail."""
     id: int
     expediente_id: int
-    user_id: Optional[int] = None
-    accion: str
+    usuario_id: Optional[int] = None
+    accion: str = Field(..., min_length=1, max_length=255)
     descripcion: Optional[str] = None
-    metadata_json: Optional[str] = None
+    datos_anteriores: Optional[dict] = None
+    datos_nuevos: Optional[dict] = None
     timestamp: datetime
 
     class Config:
         from_attributes = True
 
 
+
 class PasoTramitacionBase(BaseModel):
     """Base paso tramitacion schema."""
-    titulo: str
-    descripcion: Optional[str] = None
-    numero_paso: int
+    titulo: str = Field(..., min_length=1, max_length=255)
+    descripcion: Optional[str] = Field(None, max_length=2000)
+    numero_paso: int = Field(..., gt=0)
 
 
 class PasoTramitacionCreate(PasoTramitacionBase):
@@ -80,9 +82,9 @@ class PasoTramitacionRead(PasoTramitacionBase):
 
 class ExpedienteBase(BaseModel):
     """Base expediente schema."""
-    numero: str
-    asunto: str
-    descripcion: Optional[str] = None
+    numero: str = Field(..., min_length=3, max_length=50, description="Número único del expediente")
+    asunto: str = Field(..., min_length=5, max_length=500, description="Asunto del expediente")
+    descripcion: Optional[str] = Field(None, max_length=2000)
 
 
 class ExpedienteCreate(ExpedienteBase):

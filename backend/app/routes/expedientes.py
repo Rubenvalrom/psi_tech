@@ -26,6 +26,11 @@ from ..services.document_processing import DocumentProcessingService
 
 router = APIRouter(prefix="/expedientes", tags=["expedientes"])
 
+# Constants for file validation
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+ALLOWED_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "application/msword",
+                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+
 
 @router.post("/{expediente_id}/documentos", response_model=DocumentoRead)
 async def upload_documento(
@@ -40,8 +45,20 @@ async def upload_documento(
     if not expediente:
         raise HTTPException(status_code=404, detail="Expediente not found")
 
-    # Read file content
+    # Validate content type
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type not allowed. Allowed types: {', '.join(ALLOWED_CONTENT_TYPES)}"
+        )
+
+    # Read file content with size validation
     file_content = await file.read()
+    if len(file_content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File size exceeds maximum allowed size of {MAX_FILE_SIZE // (1024*1024)}MB"
+        )
 
     # Create document record
     db_documento = Documento(
@@ -92,6 +109,7 @@ async def list_expedientes(
     limit: int = Query(10, ge=1, le=100),
     estado: str = Query(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List expedientes with pagination and optional filtering."""
     query = db.query(Expediente)
@@ -122,6 +140,7 @@ async def list_expedientes(
 async def get_expediente(
     expediente_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific expediente by ID."""
     expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
@@ -135,6 +154,7 @@ async def update_expediente(
     expediente_id: int,
     expediente_update: ExpedienteUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update an expediente."""
     expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
@@ -158,6 +178,7 @@ async def create_paso(
     expediente_id: int,
     paso: PasoTramitacionCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Add a new step (paso) to the expediente workflow."""
     expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
@@ -175,6 +196,7 @@ async def create_paso(
 async def list_pasos(
     expediente_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all steps (pasos) for an expediente."""
     expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
@@ -239,6 +261,7 @@ async def sign_documento(
 async def list_trazabilidad(
     expediente_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get audit trail for an expediente."""
     return db.query(Trazabilidad).filter(

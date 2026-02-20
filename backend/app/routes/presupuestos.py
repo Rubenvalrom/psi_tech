@@ -45,6 +45,7 @@ async def create_partida(
 @router.get("/presupuestos", response_model=List[PartidaPresupuestariaRead])
 async def list_partidas(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all budget lines."""
     return db.query(PartidaPresupuestaria).all()
@@ -54,6 +55,7 @@ async def list_partidas(
 async def get_partida(
     codigo: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific budget line."""
     partida = db.query(PartidaPresupuestaria).filter(
@@ -98,10 +100,13 @@ async def registrar_factura(
 @router.get("/facturas", response_model=List[FacturaRead])
 async def list_facturas(
     expediente_id: int = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """List invoices, optionally filtered by expediente."""
+    """List invoices, optionally filtered by expediente, with pagination."""
     query = db.query(Factura)
     if expediente_id:
         query = query.filter(Factura.expediente_id == expediente_id)
-    return query.all()
+    return query.offset(skip).limit(limit).all()

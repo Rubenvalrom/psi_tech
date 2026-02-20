@@ -55,13 +55,9 @@ class SemanticSearchService:
         """
         # 1. Retrieve relevant context
         docs = self.search_documents(question, limit=3)
-        context_str = "
-
-".join([
-            f"Documento: {doc['nombre']} (Expediente ID: {doc['expediente_id']})
-"
-            f"Tipo: {doc['tipo']}
-"
+        context_str = "\n".join([
+            f"Documento: {doc['nombre']} (Expediente ID: {doc['expediente_id']})\n"
+            f"Tipo: {doc['tipo']}\n"
             f"Resumen Extraído: {doc['metadatos'].get('resumen', 'N/A')}"
             for doc in docs
         ])
