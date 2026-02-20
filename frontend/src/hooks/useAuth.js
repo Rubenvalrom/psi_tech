@@ -1,30 +1,15 @@
-import { useState, useEffect } from "react";
+import { useAuth as useOidcAuth } from "react-oidc-context";
 
 export function useAuth() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const auth = useOidcAuth();
 
-  useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      setIsAuthenticated(true);
-      // TODO: Fetch user info on Fase 2 with Keycloak
-    }
-    setLoading(false);
-  }, []);
-
-  const login = (username, password) => {
-    // TODO: Implement Keycloak login on Fase 2
-    console.log("Mock login:", username);
+  return {
+    user: auth.user?.profile,
+    loading: auth.isLoading,
+    isAuthenticated: auth.isAuthenticated,
+    login: () => auth.signinRedirect(),
+    logout: () => auth.signoutRedirect(),
+    token: auth.user?.access_token,
+    error: auth.error
   };
-
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  return { user, loading, isAuthenticated, login, logout };
 }

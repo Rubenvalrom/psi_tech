@@ -1,30 +1,24 @@
-"""Pydantic schemas for financial models."""
-from typing import Optional
+"""Pydantic schemas for Financial models."""
+from typing import Optional, List
 from pydantic import BaseModel
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 
 
 class PartidaPresupuestariaBase(BaseModel):
-    """Base partida presupuestaria schema."""
+    """Base schema for budget lines."""
     codigo_contable: str
     descripcion: str
     presupuestado: Decimal
 
 
 class PartidaPresupuestariaCreate(PartidaPresupuestariaBase):
-    """Schema for creating a partida presupuestaria."""
+    """Schema for creating a budget line."""
     pass
 
 
-class PartidaPresupuestariaUpdate(BaseModel):
-    """Schema for updating a partida presupuestaria."""
-    descripcion: Optional[str] = None
-    presupuestado: Optional[Decimal] = None
-
-
 class PartidaPresupuestariaRead(PartidaPresupuestariaBase):
-    """Schema for reading a partida presupuestaria."""
+    """Schema for reading a budget line."""
     id: int
     comprometido: Decimal
     pagado: Decimal
@@ -37,8 +31,14 @@ class PartidaPresupuestariaRead(PartidaPresupuestariaBase):
         from_attributes = True
 
 
+class PartidaPresupuestariaUpdate(BaseModel):
+    """Schema for updating a budget line."""
+    descripcion: Optional[str] = None
+    presupuestado: Optional[Decimal] = None
+
+
 class FacturaBase(BaseModel):
-    """Base factura schema."""
+    """Base schema for invoices."""
     numero: str
     proveedor: str
     monto: Decimal
@@ -46,19 +46,16 @@ class FacturaBase(BaseModel):
 
 
 class FacturaCreate(FacturaBase):
-    """Schema for creating a factura."""
+    """Schema for creating an invoice."""
     expediente_id: Optional[int] = None
     partida_presupuestaria_id: Optional[int] = None
-
-
-class FacturaUpdate(BaseModel):
-    """Schema for updating a factura."""
-    estado: Optional[str] = None
+    contenido_xml: Optional[str] = None
 
 
 class FacturaRead(FacturaBase):
-    """Schema for reading a factura."""
+    """Schema for reading an invoice."""
     id: int
+    fecha_recepcion: Optional[datetime] = None
     estado: str
     expediente_id: Optional[int] = None
     partida_presupuestaria_id: Optional[int] = None

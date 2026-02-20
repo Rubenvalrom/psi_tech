@@ -21,6 +21,30 @@ class DocumentoRead(DocumentoBase):
     expediente_id: int
     fecha_carga: datetime
     metadatos_extraidos: Optional[str] = None
+    
+    # Phase 3
+    hash_firma: Optional[str] = None
+    firmado_por: Optional[str] = None
+    fecha_firma: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentoSign(BaseModel):
+    """Schema for signing a documento."""
+    firmado_por: str
+
+
+class TrazabilidadRead(BaseModel):
+    """Schema for reading audit trail."""
+    id: int
+    expediente_id: int
+    user_id: Optional[int] = None
+    accion: str
+    descripcion: Optional[str] = None
+    metadata_json: Optional[str] = None
+    timestamp: datetime
 
     class Config:
         from_attributes = True

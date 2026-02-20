@@ -1,5 +1,6 @@
 """Financial and budget models (Fase 4)."""
 from sqlalchemy import Column, Integer, String, Numeric, DateTime, Enum, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 from ..core.database import Base
@@ -26,6 +27,9 @@ class PartidaPresupuestaria(Base):
     pagado = Column(Numeric(15, 2), default=0, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    facturas = relationship("Factura", back_populates="partida")
 
     def __repr__(self):
         return f"<PartidaPresupuestaria {self.codigo_contable}>"
@@ -58,6 +62,10 @@ class Factura(Base):
     contenido_xml = Column(String(5000), nullable=True)  # UBL 2.1 XML content
     created_at = Column(DateTime, server_default=func.now(), index=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    expediente = relationship("Expediente", back_populates="facturas")
+    partida = relationship("PartidaPresupuestaria", back_populates="facturas")
 
     def __repr__(self):
         return f"<Factura {self.numero}>"

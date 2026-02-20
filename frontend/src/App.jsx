@@ -3,6 +3,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { ExpedientesListado } from "./pages/ExpedientesListado";
+import { ExpedienteDetalle } from "./pages/ExpedienteDetalle";
 import { PresupuestosPage } from "./pages/PresupuestosPage";
 
 function App() {
@@ -26,6 +27,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ExpedientesListado />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expedientes/:id"
+          element={
+            <ProtectedRoute>
+              <ExpedienteDetalle />
             </ProtectedRoute>
           }
         />

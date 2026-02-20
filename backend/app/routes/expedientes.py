@@ -1,11 +1,13 @@
 """Expediente CRUD endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from typing import List
+from typing import List, Optional
 
 from ..core.database import get_db
-from ..models.expediente import Expediente, EstadoExpediente, PasoTramitacion, EstadoPaso
+from ..core.security import get_current_user
+from ..models.expediente import Expediente, EstadoExpediente, PasoTramitacion, EstadoPaso, Trazabilidad, Documento
+from ..models.user import User
 from ..schemas.expediente import (
     ExpedienteCreate,
     ExpedienteUpdate,
@@ -13,15 +15,59 @@ from ..schemas.expediente import (
     ExpedientePaginatedResponse,
     PasoTramitacionCreate,
     PasoTramitacionRead,
+    TrazabilidadRead,
+    DocumentoSign,
+    DocumentoRead,
 )
+from ..services.workflow import WorkflowService
+from ..services.signing import SigningService
+from ..services.document_processing import DocumentProcessingService
+
 
 router = APIRouter(prefix="/expedientes", tags=["expedientes"])
+
+
+@router.post("/{expediente_id}/documentos", response_model=DocumentoRead)
+async def upload_documento(
+    expediente_id: int,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a document to an expediente and trigger IA analysis."""
+    expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    if not expediente:
+        raise HTTPException(status_code=404, detail="Expediente not found")
+
+    # Read file content
+    file_content = await file.read()
+
+    # Create document record
+    db_documento = Documento(
+        expediente_id=expediente_id,
+        nombre=file.filename,
+        contenido_blob=file_content,
+        tipo="ADJUNTO" # Default type, IA can override this
+    )
+    db.add(db_documento)
+    db.commit()
+    db.refresh(db_documento)
+
+    # Trigger background analysis
+    doc_service = DocumentProcessingService(db)
+    background_tasks.add_task(
+        doc_service.process_pdf_content, db_documento.id, current_user.id
+    )
+
+    return db_documento
 
 
 @router.post("", response_model=ExpedienteRead, status_code=201)
 async def create_expediente(
     expediente: ExpedienteCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new expediente (case file)."""
     # Check if numero is already used
@@ -29,7 +75,11 @@ async def create_expediente(
     if existing:
         raise HTTPException(status_code=400, detail="Expediente numero already exists")
 
-    db_expediente = Expediente(**expediente.dict())
+    exp_data = expediente.dict()
+    if not exp_data.get("responsable_id"):
+        exp_data["responsable_id"] = current_user.id
+
+    db_expediente = Expediente(**exp_data)
     db.add(db_expediente)
     db.commit()
     db.refresh(db_expediente)
@@ -136,3 +186,61 @@ async def list_pasos(
     ).order_by(PasoTramitacion.numero_paso).all()
 
     return pasos
+
+
+@router.post("/{expediente_id}/start", response_model=ExpedienteRead)
+async def start_workflow(
+    expediente_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Start the workflow for an expediente."""
+    service = WorkflowService(db)
+    service.start_workflow(expediente_id, current_user.id)
+    
+    expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    return expediente
+
+
+@router.post("/{expediente_id}/pasos/{paso_id}/complete", response_model=PasoTramitacionRead)
+async def complete_paso(
+    expediente_id: int,
+    paso_id: int,
+    comentarios: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Complete a workflow step."""
+    service = WorkflowService(db)
+    try:
+        return service.complete_step(expediente_id, paso_id, current_user.id, comentarios)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/documentos/{documento_id}/sign", response_model=DocumentoRead)
+async def sign_documento(
+    documento_id: int,
+    firma: DocumentoSign,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sign a document digitaly."""
+    service = SigningService(db)
+    try:
+        # Use signed_by from payload if present, else fallback to current_user.nombre_completo
+        signer_name = firma.firmado_por if firma.firmado_por else current_user.nombre_completo
+        return service.sign_document(documento_id, signer_name, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{expediente_id}/trazabilidad", response_model=List[TrazabilidadRead])
+async def list_trazabilidad(
+    expediente_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get audit trail for an expediente."""
+    return db.query(Trazabilidad).filter(
+        Trazabilidad.expediente_id == expediente_id
+    ).order_by(desc(Trazabilidad.timestamp)).all()

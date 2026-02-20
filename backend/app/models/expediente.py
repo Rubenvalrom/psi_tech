@@ -49,6 +49,7 @@ class Expediente(Base):
     # Relationships
     documentos = relationship("Documento", back_populates="expediente", cascade="all, delete-orphan")
     pasos = relationship("PasoTramitacion", back_populates="expediente", cascade="all, delete-orphan")
+    facturas = relationship("Factura", back_populates="expediente")
 
     def __repr__(self):
         return f"<Expediente {self.numero}>"
@@ -67,6 +68,11 @@ class Documento(Base):
     ruta_archivo = Column(String(500), nullable=True)  # Path to file if stored externally
     metadatos_extraidos = Column(String(2000), nullable=True)  # JSON string with OCR/IA metadata
     fecha_carga = Column(DateTime, server_default=func.now(), index=True)
+    
+    # Phase 3: Digital Signature
+    hash_firma = Column(String(255), nullable=True)  # SHA-256 hash of the document
+    firmado_por = Column(String(255), nullable=True)  # User identifier who signed the document
+    fecha_firma = Column(DateTime, nullable=True)
 
     # Relationships
     expediente = relationship("Expediente", back_populates="documentos")
@@ -98,3 +104,24 @@ class PasoTramitacion(Base):
 
     def __repr__(self):
         return f"<PasoTramitacion {self.expediente_id}-{self.numero_paso}>"
+
+
+class Trazabilidad(Base):
+    """Audit trail for all actions on expedientes (Fase 3)."""
+
+    __tablename__ = "trazabilidad"
+
+    id = Column(Integer, primary_key=True, index=True)
+    expediente_id = Column(Integer, ForeignKey("expedientes.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    accion = Column(String(255), nullable=False)  # e.g., "CAMBIO_ESTADO", "FIRMA_DOCUMENTO"
+    descripcion = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)  # JSON with extra details
+    timestamp = Column(DateTime, server_default=func.now(), index=True)
+
+    # Relationships
+    expediente = relationship("Expediente")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<Trazabilidad {self.expediente_id} - {self.accion}>"

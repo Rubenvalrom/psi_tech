@@ -9,3 +9,5 @@ aioredis>=2.0
 psycopg2-binary==2.9.9
 requests==2.31.0
 python-dotenv==1.0.0
+python-keycloak>=3.3.0
+pypdf>=3.17.0
