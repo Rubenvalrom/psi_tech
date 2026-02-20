@@ -4,6 +4,7 @@ import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { ExpedientesListado } from "./pages/ExpedientesListado";
 import { ExpedienteDetalle } from "./pages/ExpedienteDetalle";
+import { AsistenteIA } from "./pages/AsistenteIA";
 import { PresupuestosPage } from "./pages/PresupuestosPage";
 
 function App() {
@@ -43,6 +44,14 @@ function App() {
           element={
             <ProtectedRoute>
               <PresupuestosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/asistente-ia"
+          element={
+            <ProtectedRoute>
+              <AsistenteIA />
             </ProtectedRoute>
           }
         />

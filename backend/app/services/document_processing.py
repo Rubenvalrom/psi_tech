@@ -44,6 +44,12 @@ class DocumentProcessingService:
             logger.info(f"Analyzing text with LLM for document {document_id}...")
             metadata = self.ollama.analyze_document_text(text)
             
+            # 2b. Generate Embedding for Phase 5
+            logger.info(f"Generating embedding for document {document_id}...")
+            embedding = self.ollama.generate_embedding(text)
+            if embedding:
+                doc.embedding = embedding
+
             # 3. Update document metadata
             doc.metadatos_extraidos = json.dumps(metadata)
             

@@ -4,7 +4,7 @@ import logging
 
 from app.core.config import settings
 from app.core.database import engine, Base, init_db, close_db
-from app.routes import health, expedientes, presupuestos
+from app.routes import health, expedientes, presupuestos, ai
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -53,6 +53,7 @@ async def shutdown():
 app.include_router(health.router, prefix=settings.API_V1_STR)
 app.include_router(expedientes.router, prefix=settings.API_V1_STR)
 app.include_router(presupuestos.router, prefix=settings.API_V1_STR)
+app.include_router(ai.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

@@ -12,4 +12,8 @@ export default defineConfig({
       process.env.VITE_API_URL || "http://localhost:8000/api/v1"
     ),
   },
+  test: {
+    globals: true,
+    environment: "jsdom",
+  },
 });

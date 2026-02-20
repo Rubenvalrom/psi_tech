@@ -20,6 +20,9 @@ export function NavBar() {
           <Link to="/presupuestos" className="hover:text-blue-200">
             Presupuestos
           </Link>
+          <Link to="/asistente-ia" className="bg-white text-blue-600 px-3 py-1 rounded font-bold hover:bg-blue-50">
+            Asistente IA ✨
+          </Link>
           <button
             onClick={logout}
             className="bg-red-500 px-4 py-2 rounded hover:bg-red-600"

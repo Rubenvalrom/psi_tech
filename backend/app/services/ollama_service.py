@@ -74,3 +74,28 @@ class OllamaService:
             return response.status_code == 200
         except:
             return False
+
+    def generate_embedding(self, text: str) -> Optional[list]:
+        """
+        Generates a vector embedding for the given text.
+        """
+        try:
+            response = requests.post(
+                f"{self.host}/api/embeddings",
+                json={
+                    "model": self.model,
+                    "prompt": text
+                },
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Ollama embedding error: {response.status_code} - {response.text}")
+                return None
+
+            result = response.json()
+            return result.get("embedding")
+
+        except Exception as e:
+            logger.error(f"Error calling Ollama embeddings: {e}")
+            return None

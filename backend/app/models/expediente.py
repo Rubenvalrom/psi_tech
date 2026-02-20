@@ -2,7 +2,9 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Enum, ForeignKey, LargeBinary
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 import enum
+import json
 from ..core.database import Base
 
 
@@ -69,6 +71,9 @@ class Documento(Base):
     metadatos_extraidos = Column(String(2000), nullable=True)  # JSON string with OCR/IA metadata
     fecha_carga = Column(DateTime, server_default=func.now(), index=True)
     
+    # Phase 5: Semantic Search
+    embedding = Column(Vector(4096), nullable=True) # Vector from Ollama (llama2 has 4096)
+
     # Phase 3: Digital Signature
     hash_firma = Column(String(255), nullable=True)  # SHA-256 hash of the document
     firmado_por = Column(String(255), nullable=True)  # User identifier who signed the document
